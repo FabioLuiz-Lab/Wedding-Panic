@@ -77,7 +77,6 @@ class SograBoss:
         self.dano_direita = Sprite(pasta + "sogra-boss-dano-direita.png", 1)
         self.dano_esquerda = Sprite(pasta + "sogra-boss-dano-esquerda.png", 1)
         # ALTERAÇÃO: frames gerados a partir do sprite de dano original,
-        # reduzindo gradualmente a Sogra, sem precisar alterar PPlay/Sprite.
         self.derrota_direita = Sprite(pasta + "sogra-boss-derrota-direita.png", self.FRAMES_DERROTA)
         self.derrota_esquerda = Sprite(pasta + "sogra-boss-derrota-esquerda.png", self.FRAMES_DERROTA)
         self.derrota_direita.set_total_duration(int(self.TEMPO_DERROTA * 1000))

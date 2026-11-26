@@ -8,6 +8,8 @@ import random
 import math
 import pygame
 from PPlay.sprite import Sprite
+from PPlay.sound import Sound
+from PPlay.gameimage import GameImage
 
 PASTA_PROJETO = Path(__file__).resolve().parent
 CACHE = PASTA_PROJETO / 'assets' / '.cache_escala_dama'
@@ -150,7 +152,7 @@ def _criar_sprite_escalado(caminho, frames, escala, espelhar=False):
     caminho = PASTA_PROJETO / caminho
     if not caminho.is_file():
         raise FileNotFoundError(f'Asset não encontrado: {caminho}')
-    imagem = pygame.image.load(str(caminho)).convert_alpha()
+    imagem = GameImage(str(caminho)).image
     largura, altura = imagem.get_size()
     if largura % frames:
         raise ValueError(f'{caminho.name}: largura {largura} não divisível por {frames} quadros')
@@ -266,8 +268,10 @@ class DamaBoss:
         for nome, caminho in SONS_DAMA.items():
             if caminho and (PASTA_PROJETO / caminho).is_file():
                 try:
-                    self.sons[nome] = pygame.mixer.Sound(str(PASTA_PROJETO / caminho))
-                except (pygame.error, OSError):
+                    # ALTERAÇÃO: manter caminhos e formatos originais; Sound inicializa o mixer.
+                    self.sons[nome] = Sound(str(PASTA_PROJETO / caminho))
+                except (pygame.error, OSError, ValueError):
+                    # ALTERAÇÃO: áudio opcional; não interromper o combate se o formato falhar.
                     pass
 
     # ========================================================
@@ -739,10 +743,8 @@ class DamaBoss:
         self.y = max(260, min(self.y, 900-self.altura))
         self._trocar_animacao('andando', self.direcao, tempo_ms=DURACAO_ANIMACAO_ANDANDO_MS)
 
-    # ALTERAÇÃO: efeitos em coordenadas do mundo, convertidos para o buffer PPlay.
     def desenhar_efeitos(self, tela, camera_x):
         # ALTERAÇÃO: os sprites usam coordenadas do MUNDO;
-        # Sprite.draw() já aplica a câmera nativa PPlay 2.1.
         for tiro in self.tiros:
             sprite_tiro = (self.sprite_projetil_esquerda if tiro['direcao'] == 'esquerda'
                            else self.sprite_projetil_direita)

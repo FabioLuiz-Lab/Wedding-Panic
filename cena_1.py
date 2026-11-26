@@ -8,7 +8,7 @@ Execute `python cena_1.py` para visualizar isoladamente (pela raiz do projeto).
 from pathlib import Path
 import pygame
 from PPlay.sprite import Sprite
-from PPlay.gameimage import GameImage  # ALTERAÇÃO: fundo fixo via PPlay 2.1
+from PPlay.gameimage import GameImage
 from PPlay.scenemanager import Scene, SceneManager
 
 
@@ -23,8 +23,7 @@ PASTA_CENAS = Path(__file__).resolve().parent / 'cenas'
 PASTA_CACHE = PASTA_CENAS / '.cache_escala'
 ARQUIVO_CENARIO = 'cenario-cena-1-900.png'
 
-# Se desejar, desative a marcação temporária do Noivo caso sua imagem falte.
-DESENHAR_NOIVO_PROVISORIO = True
+# ALTERAÇÃO: Noivo usa exclusivamente o sprite definitivo; removido fallback gráfico provisório.
 MOSTRAR_DEBUG = False              # True: imprime cronômetro e estados na tela.
 FIM_CENA_APOS_NOIVA_MS = 4000      # A cena termina este tempo após a Noiva terminar de observar.
 
@@ -44,8 +43,7 @@ AMIGOS_CARREGANDO = {
     'espera_antes_mover': 0.5,
 }
 NOIVO_PARADO = {
-    # ALTERAÇÃO: este arquivo não estava no ZIP de recursos verificado.
-    # Ajuste este nome para o arquivo verdadeiro quando disponibilizá-lo.
+    # ALTERAÇÃO: usa o arquivo original do Noivo, existente na pasta cenas.
     'arquivo': 'sprite-noivo-parado.png',
     'frames': 1, 'x': 590, 'y': 250, 'escala': 0.85,
     'inicio': 0.0, 'duracao_ms': 1000, 'velocidade': 0,
@@ -110,8 +108,16 @@ class AtorCena:
         PASTA_CACHE.mkdir(exist_ok=True)
         imagem = pygame.image.load(str(origem)).convert_alpha()
         largura_original, altura_original = imagem.get_size()
+        # ALTERAÇÃO: preservar a spritesheet original mesmo quando falta 1 pixel
+        # para dividir igualmente os quadros (ex.: amigos-andando: 2047 / 16).
+        # A correção acontece apenas em memória, sem redimensionar o desenho
+        # original nem criar dependência da pasta sprites_preparados.
         if largura_original % self.frames != 0:
-            raise ValueError(f'{config["arquivo"]}: a largura não é divisível por {self.frames} frames')
+            largura_corrigida = ((largura_original + self.frames - 1) // self.frames) * self.frames
+            imagem_corrigida = pygame.Surface((largura_corrigida, altura_original), pygame.SRCALPHA)
+            imagem_corrigida.blit(imagem, (0, 0))
+            imagem = imagem_corrigida
+            largura_original = largura_corrigida
         largura_frame = largura_original // self.frames
         largura_escalada_frame = max(1, round(largura_frame * self.escala))
         altura_escalada = max(1, round(altura_original * self.escala))
@@ -174,20 +180,13 @@ class AtorCena:
         if self.sprite is not None:
             self.sprite.set_position(self.x, self.y)
             self.sprite.draw()
-        elif self.fallback and self.nome == 'Noivo' and DESENHAR_NOIVO_PROVISORIO:
-            # Apenas marca visual temporária; substituída pelo PNG real automaticamente.
-            rect = pygame.Rect(round(self.x), round(self.y), round(self.largura), round(self.altura))
-            pygame.draw.rect(tela, (65, 92, 135), rect, 3)
-            font = pygame.font.Font(None, 25)
-            tela.blit(font.render('NOIVO', True, (255, 255, 255)), (rect.x + 14, rect.y + 20))
 
 
 # ============================================================
-# CENA DE ABERTURA (SCENE / SCENEMANAGER DA PPLAY 2.1)
 # ============================================================
 class Cena1(Scene):
     def __init__(self):
-        super().__init__()  # obrigatório: inicializa janela, teclado, mouse no PPlay 2.1
+        super().__init__()
 
         self.tempo_cena = 0.0
         self.tempo_carregando = 0.0
@@ -195,19 +194,13 @@ class Cena1(Scene):
         self.concluida = False
         self.proxima_cena = None  # pode ser um callback/instância definido pela integração futura
 
-        # ALTERAÇÃO: carregar e desenhar o fundo com GameImage da PPlay 2.1.
         # O arquivo deve estar dentro da subpasta "cenas", ao lado deste script.
         caminho_fundo = PASTA_CENAS / ARQUIVO_CENARIO
         if not caminho_fundo.is_file():
             raise FileNotFoundError(f'Imagem de fundo não encontrada: {caminho_fundo}')
         self.fundo = GameImage(str(caminho_fundo))
         self.fundo.set_position(0, 0)
-        # ALTERAÇÃO: ajustar o fundo para preencher a janela sem mudar o PNG original.
-        if (self.fundo.width, self.fundo.height) != (self.janela.width, self.janela.height):
-            self.fundo.image = pygame.transform.smoothscale(
-                self.fundo.image, (self.janela.width, self.janela.height)
-            )
-            self.fundo.width, self.fundo.height = self.janela.width, self.janela.height
+        # ALTERAÇÃO: o cenário original já possui 1600 x 900 pixels;
         print(f'[Cena 1] Fundo carregado: {caminho_fundo} ({self.fundo.width} x {self.fundo.height})')
 
         self.amigos_andando = AtorCena(AMIGOS_ANDANDO, 'Amigos andando')
@@ -320,7 +313,7 @@ class Cena1(Scene):
     def draw(self):
         # ALTERAÇÃO: GameImage desenha no buffer da PPlay; o fundo vem antes dos sprites.
         self.fundo.draw()
-        tela = pygame.display.get_surface()
+        tela = self.janela.screen
         self.sogra_parada.desenhar(tela)
         self.sogra_andando.desenhar(tela)
         self.dama.desenhar(tela)
@@ -329,13 +322,13 @@ class Cena1(Scene):
         self.amigos_carregando.desenhar(tela)
         self.noiva.desenhar(tela)
         if MOSTRAR_DEBUG:
-            fonte = pygame.font.Font(None, 26)
             linhas = [f'tempo: {self.tempo_cena:.2f}s',
                       f'amigos: {self.estado_amigos}',
                       f'sogra: {self.sogra_ativada} | noiva: {self.noiva_ativada}',
                       f'concluida: {self.concluida}']
             for i, linha in enumerate(linhas):
-                tela.blit(fonte.render(linha, True, (255, 240, 30)), (15, 15 + 28 * i))
+                self.janela.draw_text(linha, 15, 15 + 28 * i,
+                                     tamanho=26, cor=(255, 240, 30))
 
 
 # ============================================================

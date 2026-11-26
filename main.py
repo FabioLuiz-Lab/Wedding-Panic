@@ -1,7 +1,8 @@
 from PPlay.window import Window
 from PPlay.gameimage import GameImage
-from PPlay.camera import Camera  # ALTERAÇÃO: câmera nativa da Power PPlay 2.1
+from PPlay.camera import Camera
 from PPlay.sprite import Sprite  # ALTERAÇÃO: animações do Noivo na cena final
+from PPlay.ui import UITheme
 
 from noiva_1 import Noiva
 from penetra import Penetra
@@ -11,8 +12,6 @@ from sogra_boss import SograBoss  # ALTERAÇÃO: boss da última tela da Fase 1
 from aplicador import Aplicador    # ALTERAÇÃO: arma coletável e tiros de chantilly
 from dama_boss import DamaBoss, BancoBistro, BANCO_SUPERIOR_DIREITO, BANCO_INFERIOR_ESQUERDO, MOSTRAR_CONTAGEM_DAMA, TEMPO_DESPERTAR  # ALTERAÇÃO: arena e despertar da Boss da Fase 2
 # ALTERAÇÃO: menus/ranking em módulo independente, abertura preservada.
-import pygame
-from PIL import Image  # ALTERAÇÃO: leitura dos quadros e tempos reais dos GIFs finais
 from menus_wedding import MenusWedding
 from cena_1 import Cena1
 
@@ -52,6 +51,7 @@ PONTUACAO_TOPO_DESTINO = 3 * PONTOS_TERCO_DESTINO
 # ALTERAÇÃO: após a barra, mostrar o destino correspondente por 10 segundos.
 TEMPO_GIF_DESTINO = 10.0
 # Até 500: Petrópolis; 501 a 1000: Paris; acima de 1000: Maldivas.
+# ALTERAÇÃO: referências históricas; os GIFs não são mais carregados pelo jogo.
 ARQUIVOS_GIFS_DESTINO = (
     "cenas/1-petropolis.gif",
     "cenas/2-paris.gif",
@@ -369,7 +369,7 @@ pontuacao = 0
 # ============================================================
 
 fase_atual = 2 if TESTE_INICIAR_FASE_2 else 1  # ALTERAÇÃO: teste reversível.
-camera_x = 0  # ALTERAÇÃO: usado somente pelos GameImage (não pelos Sprite).
+camera_x = 0
 # ALTERAÇÃO: trava a arena final da Fase 2 assim que a Noiva entra nela.
 arena_dama_ativa = False
 camera.set_world_bounds(LARGURA_CENARIO, ALTURA_CENARIO)
@@ -398,8 +398,7 @@ noivo_pedido.set_loop(False)
 
 # ALTERAÇÃO: tela fixa de destino, desenhada sem câmera sobre toda a janela.
 # Os limites são proporcionais à arte original de 1672 x 941 pixels.
-imagem_destino = pygame.image.load("cenas/Destino.png").convert_alpha()
-imagem_destino = pygame.transform.smoothscale(imagem_destino, (janela.width, janela.height))
+imagem_destino = GameImage("cenas/Destino_PPlay_1600x900.png")
 FATOR_X_DESTINO = janela.width / 1672
 FATOR_Y_DESTINO = janela.height / 941
 BARRA_DESTINO_X = int(713 * FATOR_X_DESTINO)
@@ -407,26 +406,40 @@ BARRA_DESTINO_LARGURA = int(224 * FATOR_X_DESTINO)
 BARRA_DESTINO_TOPO = int(241 * FATOR_Y_DESTINO)
 BARRA_DESTINO_BASE = int(843 * FATOR_Y_DESTINO)
 BARRA_DESTINO_ALTURA = BARRA_DESTINO_BASE - BARRA_DESTINO_TOPO
-fonte_destino_total = pygame.font.Font(None, max(26, int(34 * FATOR_Y_DESTINO)))
-fonte_destino_marcas = pygame.font.Font(None, max(20, int(24 * FATOR_Y_DESTINO)))
+fonte_destino_total = UITheme.fonte(max(26, int(34 * FATOR_Y_DESTINO)), False)
+fonte_destino_marcas = UITheme.fonte(max(20, int(24 * FATOR_Y_DESTINO)), False)
 tempo_tela_destino = 0.0
 
-# ALTERAÇÃO: ler todos os quadros dos GIFs, respeitando sua duração original.
-# PPlay/Pygame não reproduzem GIF animado diretamente pelo Sprite.
-# Cada quadro é convertido uma única vez em Surface para desenhar no jogo.
-def carregar_gif_destino(caminho):
-    quadros = []
-    duracoes = []
-    with Image.open(caminho) as gif:
-        for indice in range(gif.n_frames):
-            gif.seek(indice)
-            quadro_rgba = gif.convert("RGBA")
-            quadro_rgba.thumbnail((janela.width, janela.height), Image.Resampling.NEAREST)
-            surface = pygame.image.fromstring(quadro_rgba.tobytes(),
-                                              quadro_rgba.size, "RGBA").convert_alpha()
-            quadros.append(surface)
-            duracoes.append(max(0.02, gif.info.get("duration", 100) / 1000.0))
-    return quadros, duracoes, sum(duracoes)
+# As imagens têm 225x4 px e 235x2 px, equivalentes às linhas anteriores em 1600x900.
+barra_destino_verde = GameImage("assets/ui_pplay/barra_destino_verde.png")
+barra_destino_amarela = GameImage("assets/ui_pplay/barra_destino_amarela.png")
+barra_destino_vermelha = GameImage("assets/ui_pplay/barra_destino_vermelha.png")
+barra_destino_divisao = GameImage("assets/ui_pplay/barra_destino_divisao.png")
+
+# ALTERAÇÃO: Etapa 7 — os GIFs foram convertidos previamente em spritesheets PNG.
+# São 3 faixas de 3 quadros por destino, evitando texturas largas no navegador.
+# As três animações são reproduzidas por 10s, como na versão anterior.
+ARQUIVOS_SPRITES_DESTINO = (
+    "1-petropolis",
+    "2-paris",
+    "3-maldivas",
+)
+# ALTERAÇÃO: tempos obtidos dos próprios arquivos GIF originais enviados.
+DURACOES_QUADROS_DESTINO = (
+    (0.18,) * 9,  # Petrópolis: ciclo de 1.62s
+    (0.35,) * 9,  # Paris: ciclo de 3.15s
+    (0.35,) * 9,  # Maldivas: ciclo de 3.15s
+)
+
+def carregar_gif_destino(indice_destino):
+    # ALTERAÇÃO: preservado o nome da função para mudar o mínimo do main.
+    nome = ARQUIVOS_SPRITES_DESTINO[indice_destino]
+    sprites = [
+        Sprite(f"cenas/sprites_destino/{nome}_parte{parte}.png", 3)
+        for parte in (1, 2, 3)
+    ]
+    duracoes = list(DURACOES_QUADROS_DESTINO[indice_destino])
+    return sprites, duracoes, sum(duracoes)
 
 # ALTERAÇÃO: carregar somente o GIF escolhido, após a pontuação.
 quadros_gif_destino = []
@@ -454,8 +467,6 @@ while True:
         abertura.loop()
         abertura.draw()
         if abertura.concluida:
-            # ALTERAÇÃO: desenhar o menu no buffer virtual da PPlay.
-            # O Window.update() apresenta esse buffer e não apaga os botões.
             estado_tela = 'menu'
             menus.abrir('principal')
             menus.desenhar(fundo_pausado=False)
@@ -465,7 +476,7 @@ while True:
     if estado_tela in ('menu', 'nome', 'pausa'):
         acao_menu = menus.atualizar()
         if acao_menu == 'sair':
-            pygame.quit()
+            janela.close()
             break
         if acao_menu == 'continuar':
             # ALTERAÇÃO: pausa também pode retomar destino ou GIF final.
@@ -547,7 +558,7 @@ while True:
             continue
 
     # ALTERAÇÃO: pausa por ESC, ANTES de qualquer atualização da partida.
-    if not pygame.key.get_pressed()[pygame.K_ESCAPE]:
+    if not teclado.key_pressed('esc'):
         bloquear_esc_ate_soltar = False
     if not bloquear_esc_ate_soltar and teclado.key_down('ESC'):
         estado_antes_pausa = estado_tela  # ALTERAÇÃO: retomar jogo, destino ou GIF final.
@@ -571,7 +582,8 @@ while True:
     # A pontuação real é preservada inclusive acima da escala visual (1500).
     if estado_tela == 'destino':
         tempo_tela_destino += dt
-        janela.screen.blit(imagem_destino, (0, 0))
+        imagem_destino.set_position(0, 0)
+        imagem_destino.draw()
 
         progresso_tempo = min(1.0, tempo_tela_destino / DURACAO_ENCHIMENTO_DESTINO)
         fracao_pontos = min(1.0, max(0, pontuacao) / PONTUACAO_TOPO_DESTINO)
@@ -584,20 +596,22 @@ while True:
             fracao_altura = altura / BARRA_DESTINO_ALTURA
             if fracao_altura < 1 / 3:
                 cor_linha = (93, 193, 152)      # 0 a 500
+                faixa_destino = barra_destino_verde
             elif fracao_altura < 2 / 3:
                 cor_linha = (245, 186, 81)      # 500 a 1000
+                faixa_destino = barra_destino_amarela
             else:
                 cor_linha = (228, 112, 111)     # acima de 1000
-            pygame.draw.line(janela.screen, cor_linha,
-                             (BARRA_DESTINO_X, posicao_y),
-                             (BARRA_DESTINO_X + BARRA_DESTINO_LARGURA, posicao_y), 4)
+                faixa_destino = barra_destino_vermelha
+            # ALTERAÇÃO: mantém o passo vertical de 5px e a espessura de 4px.
+            faixa_destino.set_position(BARRA_DESTINO_X, posicao_y - 1)
+            faixa_destino.draw()
 
         # ALTERAÇÃO: divisões visíveis dos três terços (500 e 1000 pontos).
         for marco in (1, 2):
             marca_y = BARRA_DESTINO_BASE - round(BARRA_DESTINO_ALTURA * marco / 3)
-            pygame.draw.line(janela.screen, (104, 55, 61),
-                             (BARRA_DESTINO_X - 5, marca_y),
-                             (BARRA_DESTINO_X + BARRA_DESTINO_LARGURA + 5, marca_y), 2)
+            barra_destino_divisao.set_position(BARRA_DESTINO_X - 5, marca_y - 1)
+            barra_destino_divisao.draw()
             rotulo = fonte_destino_marcas.render(f'{marco * PONTOS_TERCO_DESTINO}', True,
                                                  (106, 53, 57))
             janela.screen.blit(rotulo, (BARRA_DESTINO_X + 6, marca_y - rotulo.get_height() - 4))
@@ -619,7 +633,7 @@ while True:
             else:
                 indice_destino = 2       # Maldivas: acima de 1000
             quadros_gif_destino, duracoes_gif_destino, duracao_ciclo_gif_destino = ( 
-                carregar_gif_destino(ARQUIVOS_GIFS_DESTINO[indice_destino])
+                carregar_gif_destino(indice_destino)
             )
             tempo_gif_destino = 0.0
             estado_tela = 'gif_destino'
@@ -650,18 +664,22 @@ while True:
                 quadro_atual = indice
                 break
             instante_ciclo -= duracao_quadro
-        quadro = quadros_gif_destino[quadro_atual]
+        # ALTERAÇÃO: cada faixa contém 3 quadros; índice global de 0 a 8.
+        sprite_destino = quadros_gif_destino[quadro_atual // 3]
+        sprite_destino.set_curr_frame(quadro_atual % 3)
         janela.screen.fill((0, 0, 0))
-        # ALTERAÇÃO: guardar a posição real do GIF para escrever FIM logo abaixo.
-        gif_x = (janela.width - quadro.get_width()) // 2
-        gif_y = (janela.height - quadro.get_height()) // 2
-        janela.screen.blit(quadro, (gif_x, gif_y))
+        # ALTERAÇÃO: preservar a posição central original; compensar a câmera
+        # global da PPlay, que também desloca Sprite.draw() mesmo nesta tela fixa.
+        gif_x = (janela.width - sprite_destino.width) // 2
+        gif_y = (janela.height - sprite_destino.height) // 2
+        sprite_destino.set_position(gif_x + camera_x, gif_y)
+        sprite_destino.draw()
         # ALTERAÇÃO: mensagem amarela durante toda a cena final de 10 segundos.
-        fonte_fim = pygame.font.SysFont('arial', 80, bold=True)
+        fonte_fim = UITheme.fonte(80, True)
         texto_fim = fonte_fim.render('FIM', True, (255, 225, 35))
         sombra_fim = fonte_fim.render('FIM', True, (95, 48, 25))
         texto_x = (janela.width - texto_fim.get_width()) // 2
-        texto_y = gif_y + quadro.get_height() + 22
+        texto_y = gif_y + sprite_destino.height + 22
         # Evita corte caso a altura do GIF seja alterada posteriormente.
         texto_y = min(texto_y, janela.height - texto_fim.get_height() - 8)
         janela.screen.blit(sombra_fim, (texto_x + 3, texto_y + 3))
@@ -1158,7 +1176,6 @@ while True:
     )
     camera.follow(alvo_camera, 1.0)  # 1.0 = acompanhamento imediato.
 
-    # ALTERAÇÃO: GameImage.draw() ignora a câmera. Convertê-lo manualmente
     # mantém o parallax, cenário e overlay alinhados na tela.
     camera_x = camera.transform_x(0) * -1
 

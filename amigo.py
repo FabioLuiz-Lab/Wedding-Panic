@@ -6,9 +6,10 @@
 # Mantém as chamadas usadas pelo main.py e espera entrar totalmente na câmera.
 """
 import math
-import math
+# ALTERAÇÃO: removido import math duplicado; sem efeito sobre a lógica.
 
 from PPlay.sprite import Sprite
+from PPlay.gameimage import GameImage
 from pathlib import Path
 import pygame
 
@@ -17,7 +18,7 @@ def _sprite_amigo_novo(arquivo, quadros, duracao_ms, fallback):
     origem = Path(arquivo)
     if not origem.is_file():
         return fallback
-    imagem = pygame.image.load(str(origem)).convert_alpha()
+    imagem = GameImage(str(origem)).image
     largura, altura = imagem.get_size()
     if largura % quadros:
         cache = Path("assets/.cache_amigo")
@@ -46,7 +47,7 @@ def _normalizar_queda_amigo(arquivo, inverter=False):
     origem = Path(arquivo)
     cache = Path("assets/.cache_amigo")
     cache.mkdir(parents=True, exist_ok=True)
-    imagem = pygame.image.load(str(origem)).convert_alpha()
+    imagem = GameImage(str(origem)).image
     largura, altura = imagem.get_size()
     quadros = 9
     largura_quadro = round(largura / quadros)
@@ -73,7 +74,7 @@ def _criar_levantamento_curto(arquivo, quadros=(8, 7, 6)):
     cache.mkdir(parents=True, exist_ok=True)
     destino = cache / f"{origem.stem}_levantando_3f.png"
     if not destino.exists() or destino.stat().st_mtime < origem.stat().st_mtime:
-        imagem = pygame.image.load(str(origem)).convert_alpha()
+        imagem = GameImage(str(origem)).image
         largura, altura = imagem.get_size()
         largura_quadro = largura // 9
         tira = pygame.Surface((largura_quadro * 3, altura), pygame.SRCALPHA)
@@ -95,7 +96,7 @@ def _sprite_upper_escalado(arquivo, quadros, escala):
     origem = Path(arquivo)
     if escala == 1.0:
         return Sprite(str(origem), quadros)
-    imagem = pygame.image.load(str(origem)).convert_alpha()
+    imagem = GameImage(str(origem)).image
     largura, altura = imagem.get_size()
     if largura % quadros:
         raise ValueError(f'{origem.name}: largura não divisível por {quadros} quadros')
